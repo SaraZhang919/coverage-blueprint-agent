@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coverage Blueprint Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;0,900;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0a0a0f; --surface:#13131a; --surface2:#1c1c26; --border:#2a2a3a;
+  --accent:#7c6af7; --accent2:#f7a26a; --accent3:#6af7c8;
+  --text:#e8e8f0; --muted:#6b6b80;
+  --danger:#f76a6a; --success:#6af7a2; --warning:#f7e26a;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100}
+.logo{font-family:'Fraunces',serif;font-size:20px;font-weight:900;letter-spacing:-.5px}
+.logo span{color:var(--accent)}
+.step-nav{display:flex;align-items:center;gap:4px}
+.step-pill{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:100px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;transition:all .2s;color:var(--muted);border:1px solid transparent}
+.step-pill:hover{color:var(--text);border-color:var(--border)}
+.step-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.step-pill.done{color:var(--accent3);border-color:var(--accent3)44}
+.step-num{width:18px;height:18px;border-radius:50%;background:currentColor;color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.step-pill.active .step-num{background:#fff;color:var(--accent)}
+
+/* Layout */
+.main{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 61px)}
+.sidebar{border-right:1px solid var(--border);background:var(--surface);padding:20px 0;position:sticky;top:61px;height:calc(100vh - 61px);overflow-y:auto}
+.sidebar-section{padding:0 18px 18px;border-bottom:1px solid var(--border);margin-bottom:18px}
+.sidebar-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.config-field{margin-bottom:10px}
+.config-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.config-field input,.config-field select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 10px;font-size:12px;font-family:'DM Mono',monospace;outline:none;transition:border-color .2s}
+.config-field input:focus{border-color:var(--accent)}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+.status-dot.ok{background:var(--success);box-shadow:0 0 6px var(--success)}
+.status-dot.warn{background:var(--warning)}
+.status-dot.err{background:var(--danger)}
+.status-row{display:flex;align-items:center;font-size:12px;color:var(--muted);margin-bottom:7px}
+.weight-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.weight-label{font-size:12px;color:var(--muted)}
+.weight-val{font-family:'DM Mono',monospace;font-size:12px;color:var(--accent)}
+.weight-bar{width:100%;height:4px;background:var(--surface2);border-radius:2px;margin-bottom:10px;overflow:hidden}
+.weight-fill{height:100%;border-radius:2px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px}
+
+/* Content */
+.content{padding:32px;overflow-y:auto;max-width:100%}
+.page{display:none}
+.page.active{display:block}
+.page-header{margin-bottom:28px}
+.page-tag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.page-title{font-family:'Fraunces',serif;font-size:30px;font-weight:900;line-height:1.1;margin-bottom:6px}
+.page-desc{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px}
+.card-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.card-desc{font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+
+/* Toggle */
+.toggle-group{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:14px;width:fit-content}
+.toggle-btn{padding:7px 18px;border-radius:7px;font-size:13px;cursor:pointer;transition:all .2s;color:var(--muted);background:none;border:none;font-family:'DM Sans',sans-serif}
+.toggle-btn.active{background:var(--accent);color:#fff}
+
+/* Drop zone */
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2)}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:var(--accent)0a}
+.drop-icon{font-size:30px;margin-bottom:10px}
+.drop-text{font-size:14px;color:var(--muted)}
+.drop-text strong{color:var(--text)}
+.drop-hint{font-size:12px;color:var(--muted);margin-top:5px;font-family:'DM Mono',monospace}
+input[type=file]{display:none}
+.file-loaded{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--success)0a;border:1px solid var(--success)33;border-radius:10px;font-size:13px;color:var(--success);margin-top:10px}
+
+/* Textarea & inputs */
+textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px;font-size:13px;font-family:'DM Mono',monospace;resize:vertical;outline:none;transition:border-color .2s;line-height:1.6}
+textarea:focus{border-color:var(--accent)}
+.text-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 14px;font-size:14px;outline:none;transition:border-color .2s;font-family:'DM Sans',sans-serif}
+.text-input:focus{border-color:var(--accent)}
+
+/* URL rows */
+.url-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.url-row{display:flex;flex-direction:column;gap:6px}
+.url-row-main{display:flex;align-items:center;gap:8px}
+.url-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 12px;font-size:13px;font-family:'DM Mono',monospace;outline:none;transition:border-color .2s}
+.url-input:focus{border-color:var(--accent)}
+.url-input.ok{border-color:var(--success)66}
+.url-input.fail{border-color:var(--danger)66}
+.url-status-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.url-remove{width:28px;height:28px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;flex-shrink:0}
+.url-remove:hover{background:var(--danger)22;border-color:var(--danger);color:var(--danger)}
+.url-fallback{display:none;padding:10px;background:var(--danger)08;border:1px solid var(--danger)22;border-radius:8px}
+.url-fallback.show{display:block}
+.url-fallback-label{font-size:11px;color:var(--danger);margin-bottom:6px;font-family:'DM Mono',monospace}
+.url-meta{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;padding:0 4px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;border:none;font-family:'DM Sans',sans-serif}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover:not(:disabled){background:#6b5ae6;transform:translateY(-1px)}
+.btn-secondary{background:var(--surface2);border:1px solid var(--border);color:var(--text)}
+.btn-secondary:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn-ghost{background:none;border:1px dashed var(--border);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-lg{padding:13px 26px;font-size:15px;border-radius:12px}
+.btn-full{width:100%;justify-content:center}
+
+/* Table */
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);background:var(--surface2)}
+.data-table td{padding:10px 12px;border-bottom:1px solid var(--border)55;color:var(--text);vertical-align:top}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--surface2)88}
+
+/* Tags */
+.tag{display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;font-size:11px;font-family:'DM Mono',monospace;font-weight:500;white-space:nowrap}
+.tag-info{background:var(--accent)22;color:var(--accent)}
+.tag-howto{background:var(--accent3)22;color:var(--accent3)}
+.tag-compare{background:var(--accent2)22;color:var(--accent2)}
+.tag-transact{background:var(--success)22;color:var(--success)}
+.tag-trouble{background:var(--danger)22;color:var(--danger)}
+.tag-definitional{background:#a78bfa22;color:#a78bfa}
+.tag-gap{background:var(--danger)22;color:var(--danger)}
+.tag-covered{background:var(--success)22;color:var(--success)}
+.tag-diff{background:var(--warning)22;color:var(--warning)}
+
+/* Score */
+.score-bar{display:flex;align-items:center;gap:7px}
+.score-track{flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;min-width:60px}
+.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.score-num{font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);width:26px;text-align:right}
+
+/* Run steps */
+.run-progress{display:flex;flex-direction:column;gap:10px;margin:20px 0}
+.run-step{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);transition:all .3s}
+.run-step.running{border-color:var(--accent);background:var(--accent)0a}
+.run-step.done{border-color:var(--success)44;background:var(--success)08}
+.run-step.error{border-color:var(--danger)44;background:var(--danger)08}
+.run-icon{font-size:20px;width:26px;text-align:center;flex-shrink:0}
+.run-label{font-size:14px;font-weight:500}
+.run-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.spinner{width:18px;height:18px;border:2px solid var(--accent)44;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Stats */
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px}
+.stat-num{font-family:'Fraunces',serif;font-size:32px;font-weight:900;line-height:1;margin-bottom:4px}
+.stat-label{font-size:12px;color:var(--muted)}
+
+/* Review */
+.review-actions{display:flex;gap:5px}
+.action-btn{padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid;font-family:'DM Mono',monospace;transition:all .15s}
+.action-approve{border-color:var(--success)44;color:var(--success);background:var(--success)11}
+.action-approve:hover,.action-approve.selected{background:var(--success)33}
+.action-reject{border-color:var(--danger)44;color:var(--danger);background:var(--danger)11}
+.action-reject:hover,.action-reject.selected{background:var(--danger)33}
+.action-edit{border-color:var(--warning)44;color:var(--warning);background:var(--warning)11}
+.action-edit:hover,.action-edit.selected{background:var(--warning)33}
+
+/* Alert */
+.alert{padding:11px 14px;border-radius:10px;font-size:13px;margin-bottom:14px;display:flex;align-items:flex-start;gap:9px;line-height:1.5}
+.alert-warn{background:var(--warning)11;border:1px solid var(--warning)33;color:var(--warning)}
+.alert-info{background:var(--accent)11;border:1px solid var(--accent)33;color:var(--accent)}
+.alert-success{background:var(--success)11;border:1px solid var(--success)33;color:var(--success)}
+.alert-error{background:var(--danger)11;border:1px solid var(--danger)33;color:var(--danger)}
+
+/* Footer nav */
+.page-footer{display:flex;justify-content:space-between;align-items:center;margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
+
+/* Questions list */
+.questions-list{list-style:none;padding:0}
+.questions-list li{padding:5px 0;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border)44;display:flex;align-items:flex-start;gap:6px}
+.questions-list li:last-child{border-bottom:none}
+.questions-list li::before{content:'→';color:var(--accent);flex-shrink:0;margin-top:1px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* Edit modal */
+.modal-overlay{position:fixed;inset:0;background:#000000aa;z-index:1000;display:flex;align-items:center;justify-content:center;display:none}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:560px;max-width:90vw}
+.modal-title{font-family:'Fraunces',serif;font-size:20px;font-weight:700;margin-bottom:16px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">Coverage<span>Blueprint</span></div>
+  <nav class="step-nav">
+    <div class="step-pill active" onclick="goTo(0)" id="pill-0"><div class="step-num">1</div>GSC Data</div>
+    <div class="step-pill" onclick="goTo(1)" id="pill-1"><div class="step-num">2</div>Competitors</div>
+    <div class="step-pill" onclick="goTo(2)" id="pill-2"><div class="step-num">3</div>Structure</div>
+    <div class="step-pill" onclick="goTo(3)" id="pill-3"><div class="step-num">4</div>Analyse</div>
+    <div class="step-pill" onclick="goTo(4)" id="pill-4"><div class="step-num">5</div>Review</div>
+    <div class="step-pill" onclick="goTo(5)" id="pill-5"><div class="step-num">6</div>Export</div>
+  </nav>
+</header>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Connection Status</div>
+      <div class="status-row"><span class="status-dot ok"></span>OpenAI — configured via Vercel</div>
+      <div class="status-row"><span class="status-dot ok"></span>Scraper — n8n webhook</div>
+      <div class="status-row"><span class="status-dot ok"></span>Writer — n8n webhook</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Scoring Weights</div>
+      <div class="weight-row"><span class="weight-label">GSC Volume</span><span class="weight-val">40%</span></div>
+      <div class="weight-bar"><div class="weight-fill" style="width:40%;background:var(--accent)"></div></div>
+      <div class="weight-row"><span class="weight-label">Competitor Density</span><span class="weight-val">35%</span></div>
+      <div class="weight-bar"><div class="weight-fill" style="width:35%;background:var(--accent2)"></div></div>
+      <div class="weight-row"><span class="weight-label">LLM Importance</span><span class="weight-val">25%</span></div>
+      <div class="weight-bar"><div class="weight-fill" style="width:25%;background:var(--accent3)"></div></div>
+    </div>
+
+    <div style="padding:0 18px">
+      <div class="sidebar-label">Session</div>
+      <div class="chip">📊 <span id="sb-gsc">No GSC data</span></div>
+      <div class="chip">🔗 <span id="sb-urls">0 URLs</span></div>
+      <div class="chip">🗂️ <span id="sb-mode">No structure</span></div>
+      <div class="chip">📋 <span id="sb-items">0 items</span></div>
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <main class="content">
+
+    <!-- PAGE 0: GSC -->
+    <div class="page active" id="page-0">
+      <div class="page-header">
+        <div class="page-tag">Step 01 — Signal Source</div>
+        <div class="page-title">GSC Query Data</div>
+        <div class="page-desc">Upload your Google Search Console export. Supports CSV and XLSX. Columns needed: query, clicks, impressions, position.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📂 Upload GSC Export</div>
+        <div class="card-desc">Go to GSC → Performance → Search results → Export → Download CSV.</div>
+        <div class="drop-zone" id="drop-zone"
+          onclick="document.getElementById('file-input').click()"
+          ondragover="event.preventDefault();this.classList.add('dragover')"
+          ondragleave="this.classList.remove('dragover')"
+          ondrop="handleDrop(event)">
+          <div class="drop-icon">📊</div>
+          <div class="drop-text"><strong>Click to upload</strong> or drag & drop</div>
+          <div class="drop-hint">CSV or XLSX · GSC format</div>
+        </div>
+        <input type="file" id="file-input" accept=".csv,.xlsx,.xls" onchange="handleFile(event)">
+        <div id="file-loaded" class="file-loaded" style="display:none">
+          ✅ <span id="file-name"></span> — <strong id="row-count"></strong> queries loaded
+        </div>
+      </div>
+
+      <div class="card" id="gsc-preview" style="display:none">
+        <div class="card-title">👁️ Preview</div>
+        <div class="card-desc">First 8 rows shown. Full dataset used for analysis.</div>
+        <div style="overflow-x:auto"><table class="data-table" id="preview-table"></table></div>
+      </div>
+
+      <div class="page-footer">
+        <div></div>
+        <button class="btn btn-primary btn-lg" onclick="goTo(1)">Next: Add Competitors →</button>
+      </div>
+    </div>
+
+    <!-- PAGE 1: Competitors -->
+    <div class="page" id="page-1">
+      <div class="page-header">
+        <div class="page-tag">Step 02 — Signal Source</div>
+        <div class="page-title">Competitor URLs</div>
+        <div class="page-desc">Add up to 6 competitor URLs. Each is scraped in parallel via n8n. Failed URLs show a manual paste fallback.</div>
+      </div>
+
+      <div class="alert alert-warn">⚠️ JS-heavy sites (React, Next.js SPAs) return headings only — body text may be empty. Analysis still runs on headings.</div>
+
+      <div class="card">
+        <div class="card-title">🔗 Competitor URLs</div>
+        <div class="card-desc">Add direct URLs to competitor articles or landing pages on the same topic.</div>
+        <div class="url-list" id="url-list"></div>
+        <button class="btn btn-ghost" onclick="addUrl()" id="add-url-btn">+ Add URL</button>
+      </div>
+
+      <div class="card" id="scrape-card" style="display:none">
+        <div class="card-title">📡 Scrape All URLs</div>
+        <div class="card-desc">Scrapes all URLs in parallel. Takes 5–20 seconds depending on sites.</div>
+        <button class="btn btn-primary" id="scrape-btn" onclick="scrapeAll()">▶ Scrape Competitors</button>
+        <div id="scrape-log" style="margin-top:14px"></div>
+      </div>
+
+      <div class="page-footer">
+        <button class="btn btn-secondary" onclick="goTo(0)">← Back</button>
+        <button class="btn btn-primary btn-lg" onclick="goTo(2)">Next: Content Structure →</button>
+      </div>
+    </div>
+
+    <!-- PAGE 2: Structure -->
+    <div class="page" id="page-2">
+      <div class="page-header">
+        <div class="page-tag">Step 03 — Your Content</div>
+        <div class="page-title">Content Structure</div>
+        <div class="page-desc">Choose whether to start fresh or evaluate an existing article structure.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🗂️ Mode</div>
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="mode-scratch" onclick="setStructMode('scratch',this)">Start from scratch</button>
+          <button class="toggle-btn" id="mode-existing" onclick="setStructMode('existing',this)">I have existing content</button>
+        </div>
+
+        <!-- SCRATCH MODE -->
+        <div id="scratch-mode">
+          <div class="alert alert-info">ℹ️ The agent will generate a complete content blueprint from your GSC data and competitor analysis.</div>
+          <label style="display:block;font-size:13px;color:var(--muted);margin-bottom:6px">Target topic / seed keyword <span style="color:var(--danger)">*</span></label>
+          <input type="text" class="text-input" id="seed-topic" placeholder="e.g. AI video enhancer, on-page SEO guide...">
+        </div>
+
+        <!-- EXISTING CONTENT MODE -->
+        <div id="existing-mode" style="display:none">
+          <div class="card-desc" style="margin-bottom:14px">What are you uploading?</div>
+
+          <!-- Sub-toggle: article vs outline -->
+          <div class="toggle-group" style="margin-bottom:16px">
+            <button class="toggle-btn active" id="sub-outline" onclick="setExistingType('outline',this)">📋 Outline / headings</button>
+            <button class="toggle-btn" id="sub-article" onclick="setExistingType('article',this)">📄 Full article text</button>
+          </div>
+
+          <!-- Outline mode -->
+          <div id="existing-outline">
+            <div class="alert alert-info" style="margin-bottom:12px">ℹ️ Paste your headings or section titles. Use ##, ###, or plain text — one item per line.</div>
+            <textarea id="existing-structure" rows="10"
+              placeholder="## Introduction&#10;## What is X&#10;## How X works&#10;### Step 1&#10;### Step 2&#10;## Benefits of X&#10;## X vs Y Comparison&#10;## FAQ&#10;## Conclusion"></textarea>
+          </div>
+
+          <!-- Article mode -->
+          <div id="existing-article" style="display:none">
+            <div class="alert alert-info" style="margin-bottom:12px">ℹ️ Paste your full article. GPT-4o will extract the structure first, then identify coverage gaps against it.</div>
+            <div style="margin-bottom:10px">
+              <label style="display:block;font-size:13px;color:var(--muted);margin-bottom:6px">Target topic / seed keyword <span style="color:var(--danger)">*</span></label>
+              <input type="text" class="text-input" id="seed-topic-article" placeholder="e.g. AI video enhancer, on-page SEO guide...">
+            </div>
+            <textarea id="existing-article-text" rows="14"
+              placeholder="Paste your full article text here...&#10;&#10;The agent will:&#10;1. Extract the structure and topics already covered&#10;2. Identify gaps vs GSC queries&#10;3. Identify gaps vs competitors&#10;4. Generate a coverage blueprint for what to add or improve"></textarea>
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:var(--muted)">
+            💡 Seed keyword is auto-detected from GSC data if not set manually
+          </div>
+        </div>
+      </div>
+
+      <div class="page-footer">
+        <button class="btn btn-secondary" onclick="goTo(1)">← Back</button>
+        <button class="btn btn-primary btn-lg" onclick="validateAndGoAnalyse()">Next: Run Analysis →</button>
+      </div>
+    </div>
+
+    <!-- PAGE 3: Analyse -->
+    <div class="page" id="page-3">
+      <div class="page-header">
+        <div class="page-tag">Step 04 — Analysis Engine</div>
+        <div class="page-title">Run Coverage Analysis</div>
+        <div class="page-desc">Four GPT-4o powered checks run sequentially. Takes 30–90 seconds total.</div>
+      </div>
+
+      <div class="three-col">
+        <div class="stat-card">
+          <div class="stat-num" id="stat-queries" style="color:var(--accent)">—</div>
+          <div class="stat-label">GSC queries</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="stat-urls" style="color:var(--accent2)">—</div>
+          <div class="stat-label">Competitors scraped</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="stat-mode" style="color:var(--accent3);font-size:18px">—</div>
+          <div class="stat-label">Structure mode</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🔍 Coverage Checks</div>
+        <div class="run-progress" id="run-progress">
+          <div class="run-step" id="rs-0">
+            <div class="run-icon">🎯</div>
+            <div><div class="run-label">① Intent match & clustering</div><div class="run-sub">Cluster GSC queries by intent, map to content structure</div></div>
+          </div>
+          <div class="run-step" id="rs-1">
+            <div class="run-icon">🏆</div>
+            <div><div class="run-label">② Competitor consensus</div><div class="run-sub">Find table-stakes topics covered by most competitors</div></div>
+          </div>
+          <div class="run-step" id="rs-2">
+            <div class="run-icon">💎</div>
+            <div><div class="run-label">③ Differentiation opportunities</div><div class="run-sub">High user importance, low competitor coverage — your content moat</div></div>
+          </div>
+          <div class="run-step" id="rs-3">
+            <div class="run-icon">🔭</div>
+            <div><div class="run-label">④ Query fan-out map</div><div class="run-sub">Every sub-question the article must answer, per section</div></div>
+          </div>
+        </div>
+        <div id="analysis-error" class="alert alert-error" style="display:none"></div>
+        <button class="btn btn-primary btn-lg btn-full" id="run-btn" onclick="runAnalysis()">▶ Run Coverage Analysis</button>
+      </div>
+    </div>
+
+    <!-- PAGE 4: Review -->
+    <div class="page" id="page-4">
+      <div class="page-header">
+        <div class="page-tag">Step 05 — Human Review Gate</div>
+        <div class="page-title">Review Blueprint</div>
+        <div class="page-desc">Approve, reject, or edit each recommendation before export. Click a topic to see its fan-out questions.</div>
+      </div>
+
+      <div class="three-col">
+        <div class="stat-card">
+          <div class="stat-num" id="rev-total" style="color:var(--accent)">0</div>
+          <div class="stat-label">Total recommendations</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="rev-approved" style="color:var(--success)">0</div>
+          <div class="stat-label">Approved</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="rev-pending" style="color:var(--warning)">0</div>
+          <div class="stat-label">Pending</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div class="card-title" style="margin-bottom:0">📋 Coverage Blueprint</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary" onclick="approveAll()">✅ Approve all</button>
+            <button class="btn btn-secondary" onclick="rejectAll()">❌ Reject all</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table" id="review-table">
+            <thead>
+              <tr>
+                <th>Topic / Section</th>
+                <th>Intent</th>
+                <th>Priority</th>
+                <th>Coverage</th>
+                <th>Decision</th>
+              </tr>
+            </thead>
+            <tbody id="review-body">
+              <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:40px">Run analysis first</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Fan-out detail panel -->
+      <div class="card" id="fanout-panel" style="display:none">
+        <div class="card-title">🔭 Fan-out Questions — <span id="fanout-topic"></span></div>
+        <div class="card-desc" id="fanout-recommendation"></div>
+        <ul class="questions-list" id="fanout-questions"></ul>
+      </div>
+
+      <div class="page-footer">
+        <button class="btn btn-secondary" onclick="goTo(3)">← Back</button>
+        <button class="btn btn-primary btn-lg" onclick="goTo(5)">Next: Export →</button>
+      </div>
+    </div>
+
+    <!-- PAGE 5: Export -->
+    <div class="page" id="page-5">
+      <div class="page-header">
+        <div class="page-tag">Step 06 — Export</div>
+        <div class="page-title">Export Blueprint</div>
+        <div class="page-desc">Send approved items to Google Sheets or download as CSV.</div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">📊 Google Sheets</div>
+          <div class="card-desc">Writes all approved rows to your Blueprint_Output tab via n8n.</div>
+          <button class="btn btn-primary btn-full" id="sheets-btn" onclick="exportSheets()">↗ Send to Google Sheets</button>
+          <div id="sheets-status" style="margin-top:10px;font-size:13px;color:var(--muted)"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">⬇️ Download CSV</div>
+          <div class="card-desc">Download approved blueprint as CSV for offline use or sharing.</div>
+          <button class="btn btn-secondary btn-full" onclick="exportCSV()">↓ Download CSV</button>
+        </div>
+      </div>
+
+      <div class="card" id="export-summary" style="display:none">
+        <div class="card-title">✅ Export Complete</div>
+        <div id="export-detail" style="font-size:14px;color:var(--muted);line-height:1.8"></div>
+      </div>
+
+      <div class="page-footer">
+        <button class="btn btn-secondary" onclick="goTo(4)">← Back to Review</button>
+        <button class="btn btn-ghost" onclick="resetAll()">🔄 New analysis</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">✎ Edit Recommendation</div>
+    <div style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px">Topic / Section title</label>
+      <input type="text" class="text-input" id="edit-topic">
+    </div>
+    <div>
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px">Recommendation notes</label>
+      <textarea id="edit-recommendation" rows="4"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeEdit()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+const S = {
+  gscData: [],
+  urls: [],           // { id, url, status, headings, text, manualContent }
+  structMode: 'scratch',
+  existingType: 'outline', // 'outline' | 'article'
+  seedTopic: '',
+  existingStructure: '',
+  existingArticle: '',
+  blueprintRows: [],  // merged output from all 4 checks
+  decisions: {},      // index → 'approve'|'reject'|'edit'
+  editIndex: null
+};
+
+// ── Navigation ─────────────────────────────────────────────────────────
+function goTo(n) {
+  document.querySelectorAll('.page').forEach((p,i) => p.classList.toggle('active', i===n));
+  document.querySelectorAll('.step-pill').forEach((p,i) => {
+    p.classList.remove('active','done');
+    if(i===n) p.classList.add('active');
+    else if(i<n) p.classList.add('done');
+  });
+  if(n===3) updateAnalysisStats();
+  updateSidebar();
+}
+
+function updateSidebar() {
+  document.getElementById('sb-gsc').textContent = S.gscData.length ? S.gscData.length+' queries' : 'No GSC data';
+  document.getElementById('sb-urls').textContent = S.urls.length+' URL'+(S.urls.length!==1?'s':'');
+  document.getElementById('sb-mode').textContent = S.structMode==='scratch' ? 'From scratch' : S.existingType==='article' ? 'Full article' : 'Outline';
+  document.getElementById('sb-items').textContent = S.blueprintRows.length+' items';
+}
+
+// ── GSC Upload ─────────────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if(f) processFile(f);
+}
+function handleFile(e) { const f=e.target.files[0]; if(f) processFile(f); }
+
+function processFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext==='csv') {
+    const r=new FileReader();
+    r.onload=e=>parseCSV(e.target.result, file.name);
+    r.readAsText(file);
+  } else if(['xlsx','xls'].includes(ext)) {
+    const r=new FileReader();
+    r.onload=e=>{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const data=XLSX.utils.sheet_to_csv(ws);
+      parseCSV(data, file.name);
+    };
+    r.readAsBinaryString(file);
+  } else {
+    alert('Please upload a CSV or XLSX file.');
+  }
+}
+
+function parseCSV(text, name) {
+  const lines=text.trim().split('\n');
+  const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const vals=lines[i].split(',').map(v=>v.replace(/"/g,'').trim());
+    if(vals.length<2) continue;
+    const row={};
+    headers.forEach((h,j)=>row[h]=vals[j]||'');
+    // normalise common GSC column names
+    const q=row['query']||row['top queries']||row['search query']||row['queries']||'';
+    if(!q) continue;
+    rows.push({
+      query: q,
+      clicks: parseInt(row['clicks']||row['click']||0)||0,
+      impressions: parseInt(row['impressions']||row['impression']||0)||0,
+      position: parseFloat(row['position']||row['avg. position']||0)||0
+    });
+  }
+  S.gscData=rows;
+  showGSCPreview(rows, name);
+  updateSidebar();
+}
+
+function showGSCPreview(rows, name) {
+  document.getElementById('file-loaded').style.display='flex';
+  document.getElementById('file-name').textContent=name;
+  document.getElementById('row-count').textContent=rows.length;
+  const preview=document.getElementById('gsc-preview');
+  preview.style.display='block';
+  const shown=rows.slice(0,8);
+  let html='<thead><tr><th>Query</th><th>Clicks</th><th>Impressions</th><th>Position</th></tr></thead><tbody>';
+  shown.forEach(r=>{
+    html+=`<tr><td>${r.query}</td><td>${r.clicks}</td><td>${r.impressions}</td><td>${r.position.toFixed(1)}</td></tr>`;
+  });
+  html+='</tbody>';
+  document.getElementById('preview-table').innerHTML=html;
+}
+
+// ── URL Management ─────────────────────────────────────────────────────
+function addUrl() {
+  if(S.urls.length>=6){ alert('Maximum 6 competitor URLs.'); return; }
+  const id=Date.now();
+  S.urls.push({id, url:'', status:'pending', headings:[], text:'', manualContent:''});
+  renderUrls();
+  if(S.urls.length>0) document.getElementById('scrape-card').style.display='block';
+}
+
+function removeUrl(id) {
+  S.urls=S.urls.filter(u=>u.id!==id);
+  renderUrls();
+  if(S.urls.length===0) document.getElementById('scrape-card').style.display='none';
+  updateSidebar();
+}
+
+function renderUrls() {
+  const list=document.getElementById('url-list');
+  list.innerHTML=S.urls.map(u=>`
+    <div class="url-row" id="urow-${u.id}">
+      <div class="url-row-main">
+        <div class="url-status-icon">${u.status==='ok'?'✅':u.status==='fail'?'❌':u.status==='scraping'?'⏳':'⚪'}</div>
+        <input class="url-input ${u.status==='ok'?'ok':u.status==='fail'?'fail':''}"
+          type="url" placeholder="https://competitor.com/article-url"
+          value="${u.url}" oninput="updateUrl(${u.id},this.value)">
+        <button class="url-remove" onclick="removeUrl(${u.id})">×</button>
+      </div>
+      ${u.status==='ok'?`<div class="url-meta">✓ ${u.headings.length} headings · ${u.wordCount||0} words</div>`:''}
+      ${u.status==='fail'?`
+        <div class="url-fallback show">
+          <div class="url-fallback-label">⚠ Scrape failed — paste content manually below</div>
+          <textarea rows="4" placeholder="Paste headings, key points, or any text from this competitor page..."
+            oninput="setManual(${u.id},this.value)">${u.manualContent||''}</textarea>
+        </div>`:''}
+    </div>
+  `).join('');
+  document.getElementById('add-url-btn').style.display=S.urls.length>=6?'none':'inline-flex';
+}
+
+function updateUrl(id, val) { const u=S.urls.find(x=>x.id===id); if(u) u.url=val; }
+function setManual(id, val) { const u=S.urls.find(x=>x.id===id); if(u) u.manualContent=val; }
+
+// ── Scrape all URLs in parallel ────────────────────────────────────────
+async function scrapeAll() {
+  const btn=document.getElementById('scrape-btn');
+  btn.disabled=true;
+  btn.textContent='⏳ Scraping...';
+
+  // Mark all as scraping
+  S.urls.forEach(u=>{ u.status='scraping'; });
+  renderUrls();
+
+  const promises=S.urls.map(async u=>{
+    if(!u.url || !u.url.startsWith('http')){ u.status='fail'; u.error='Invalid URL'; return; }
+    try {
+      const res=await fetch('/api/scrape',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({url:u.url})
+      });
+      const data=await res.json();
+      if(data.success){
+        u.status='ok';
+        u.headings=data.headings||[];
+        u.text=data.text||'';
+        u.wordCount=data.wordCount||0;
+      } else {
+        u.status='fail';
+        u.error=data.error||'Unknown error';
+      }
+    } catch(e){
+      u.status='fail';
+      u.error=e.message;
+    }
+  });
+
+  await Promise.all(promises);
+  renderUrls();
+
+  const ok=S.urls.filter(u=>u.status==='ok').length;
+  const fail=S.urls.filter(u=>u.status==='fail').length;
+  document.getElementById('scrape-log').innerHTML=`
+    <div class="alert ${fail>0?'alert-warn':'alert-success'}">
+      ✅ ${ok} scraped successfully${fail>0?` · ❌ ${fail} failed (use manual paste fallback)`:''}
+    </div>`;
+
+  btn.disabled=false;
+  btn.textContent='↺ Re-scrape';
+  updateSidebar();
+}
+
+// ── Structure mode ─────────────────────────────────────────────────────
+function setStructMode(mode, btn) {
+  S.structMode = mode;
+  // only toggle the top-level buttons
+  document.getElementById('mode-scratch').classList.toggle('active', mode==='scratch');
+  document.getElementById('mode-existing').classList.toggle('active', mode==='existing');
+  document.getElementById('scratch-mode').style.display = mode==='scratch' ? 'block' : 'none';
+  document.getElementById('existing-mode').style.display = mode==='existing' ? 'block' : 'none';
+  updateSidebar();
+}
+
+function setExistingType(type, btn) {
+  S.existingType = type; // 'outline' or 'article'
+  document.getElementById('sub-outline').classList.toggle('active', type==='outline');
+  document.getElementById('sub-article').classList.toggle('active', type==='article');
+  document.getElementById('existing-outline').style.display = type==='outline' ? 'block' : 'none';
+  document.getElementById('existing-article').style.display = type==='article' ? 'block' : 'none';
+}
+
+function validateAndGoAnalyse() {
+  const mode = S.structMode;
+  const exType = S.existingType || 'outline';
+
+  if (mode === 'scratch') {
+    const topic = document.getElementById('seed-topic').value.trim();
+    if (!topic) { alert('Please enter a target topic / seed keyword.'); return; }
+    S.seedTopic = topic;
+    S.existingStructure = '';
+    S.existingArticle = '';
+
+  } else if (exType === 'outline') {
+    const outline = document.getElementById('existing-structure').value.trim();
+    if (!outline) { alert('Please paste your outline or headings.'); return; }
+    S.existingStructure = outline;
+    S.existingArticle = '';
+    // Auto-detect seed from GSC if not set
+    S.seedTopic = S.gscData[0]?.query || '';
+
+  } else if (exType === 'article') {
+    const article = document.getElementById('existing-article-text').value.trim();
+    const topic = document.getElementById('seed-topic-article').value.trim();
+    if (!article) { alert('Please paste your full article text.'); return; }
+    S.existingArticle = article;
+    S.existingStructure = '';
+    S.seedTopic = topic || S.gscData[0]?.query || '';
+  }
+
+  goTo(3);
+}
+
+// ── Analysis stats ─────────────────────────────────────────────────────
+function updateAnalysisStats() {
+  document.getElementById('stat-queries').textContent=S.gscData.length||'—';
+  const scraped=S.urls.filter(u=>u.status==='ok'||u.manualContent).length;
+  document.getElementById('stat-urls').textContent=scraped||S.urls.length||'—';
+  document.getElementById('stat-mode').textContent=S.structMode==='scratch'?'Scratch':'Existing';
+}
+
+// ── Run Analysis ───────────────────────────────────────────────────────
+async function runAnalysis() {
+  const btn=document.getElementById('run-btn');
+  btn.disabled=true;
+  btn.textContent='⏳ Running analysis...';
+  document.getElementById('analysis-error').style.display='none';
+
+  // Build competitor data (merge scraped + manual)
+  const competitorData=S.urls.map(u=>({
+    url: u.url,
+    headings: u.headings||[],
+    text: u.status==='ok' ? u.text : (u.manualContent||''),
+    wordCount: u.wordCount||0
+  }));
+
+  const payload = {
+    gscData: S.gscData,
+    competitorData,
+    existingStructure: S.existingStructure,
+    existingArticle: S.existingArticle,
+    existingType: S.existingType || 'outline',
+    seedTopic: S.seedTopic || S.gscData[0]?.query || '',
+    structMode: S.structMode
+  };
+
+  const checks=[
+    {key:'intent', stepId:'rs-0', label:'Intent clustering'},
+    {key:'consensus', stepId:'rs-1', label:'Competitor consensus'},
+    {key:'differentiation', stepId:'rs-2', label:'Differentiation'},
+    {key:'fanout', stepId:'rs-3', label:'Fan-out map'}
+  ];
+
+  const results={};
+  let hasError=false;
+
+  for(const check of checks){
+    const el=document.getElementById(check.stepId);
+    el.classList.add('running');
+    el.querySelector('.run-icon').innerHTML='<div class="spinner"></div>';
+
+    try {
+      const res=await fetch('/api/analyse',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({checkType:check.key, ...payload})
+      });
+      const data=await res.json();
+      if(data.error) throw new Error(data.error);
+      results[check.key]=data;
+      el.classList.remove('running');
+      el.classList.add('done');
+      el.querySelector('.run-icon').textContent='✅';
+    } catch(e){
+      el.classList.remove('running');
+      el.classList.add('error');
+      el.querySelector('.run-icon').textContent='❌';
+      document.getElementById('analysis-error').style.display='flex';
+      document.getElementById('analysis-error').textContent=`⚠ ${check.label} failed: ${e.message}`;
+      hasError=true;
+      break;
+    }
+  }
+
+  if(!hasError){
+    mergeResults(results);
+    btn.textContent='✅ Analysis complete — go to Review →';
+    btn.onclick=()=>goTo(4);
+    btn.disabled=false;
+    updateSidebar();
+  } else {
+    btn.disabled=false;
+    btn.textContent='↺ Retry Analysis';
+    btn.onclick=runAnalysis;
+  }
+}
+
+// ── Merge all 4 check results into unified blueprint rows ──────────────
+function mergeResults(results) {
+  const rows=[];
+
+  // 1. Intent clusters
+  const intentRows=Array.isArray(results.intent)?results.intent:[];
+  intentRows.forEach(r=>{
+    rows.push({
+      topic: r.suggestedSection||r.cluster,
+      intent: r.intent||'informational',
+      priorityScore: Math.round(r.priorityScore||50),
+      coverage_status: 'gap',
+      competitorCoverage: '',
+      differentiation: false,
+      fanOutQuestions: r.queries||[],
+      recommendation: r.contentGap||'',
+      source: 'intent'
+    });
+  });
+
+  // 2. Competitor consensus
+  const consensusRows=Array.isArray(results.consensus)?results.consensus:[];
+  consensusRows.forEach(r=>{
+    rows.push({
+      topic: r.topic,
+      intent: 'informational',
+      priorityScore: Math.round(r.priorityScore||60),
+      coverage_status: r.coverage_status||'gap',
+      competitorCoverage: `${r.coverageCount||'?'}/${r.totalCompetitors||S.urls.length} competitors`,
+      differentiation: false,
+      fanOutQuestions: r.fanOutQuestions||[],
+      recommendation: r.recommendation||'',
+      source: 'consensus'
+    });
+  });
+
+  // 3. Differentiation
+  const diffRows=Array.isArray(results.differentiation)?results.differentiation:[];
+  diffRows.forEach(r=>{
+    rows.push({
+      topic: r.topic,
+      intent: 'informational',
+      priorityScore: Math.round(r.priorityScore||55),
+      coverage_status: 'diff',
+      competitorCoverage: r.competitorCoverage||'none',
+      differentiation: true,
+      fanOutQuestions: r.fanOutQuestions||[],
+      recommendation: r.recommendation||r.rationale||'',
+      source: 'diff'
+    });
+  });
+
+  // 4. Fan-out sections (from fanout check)
+  const fanoutSections=(results.fanout?.sections)||[];
+  fanoutSections.forEach(r=>{
+    // avoid duplicates — only add if topic not already present
+    const exists=rows.some(x=>x.topic.toLowerCase()===r.sectionTitle?.toLowerCase());
+    if(!exists){
+      rows.push({
+        topic: r.sectionTitle,
+        intent: r.intent||'informational',
+        priorityScore: Math.round(r.priorityScore||45),
+        coverage_status: r.coverage_status||'gap',
+        competitorCoverage: r.competitorCoverage||'',
+        differentiation: false,
+        fanOutQuestions: r.questions||[],
+        recommendation: r.recommendation||'',
+        source: 'fanout'
+      });
+    } else {
+      // Enrich existing row with fan-out questions
+      const existing=rows.find(x=>x.topic.toLowerCase()===r.sectionTitle?.toLowerCase());
+      if(existing && r.questions?.length) {
+        existing.fanOutQuestions=[...new Set([...existing.fanOutQuestions,...r.questions])];
+      }
+    }
+  });
+
+  // Sort by priority descending
+  rows.sort((a,b)=>b.priorityScore-a.priorityScore);
+  S.blueprintRows=rows;
+  renderReviewTable();
+}
+
+// ── Review table ───────────────────────────────────────────────────────
+const intentTagMap={
+  informational:'tag-info','how-to':'tag-howto',comparative:'tag-compare',
+  transactional:'tag-transact',troubleshooting:'tag-trouble',definitional:'tag-definitional'
+};
+const covTagMap={gap:'tag-gap',covered:'tag-covered',diff:'tag-diff'};
+const covLabel={gap:'❌ Gap',covered:'✅ Covered',diff:'💎 Opportunity'};
+
+function renderReviewTable() {
+  const body=document.getElementById('review-body');
+  if(!S.blueprintRows.length){
+    body.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:40px">Run analysis first</td></tr>';
+    return;
+  }
+  body.innerHTML=S.blueprintRows.map((r,i)=>`
+    <tr style="cursor:pointer" onclick="showFanout(${i})">
+      <td>
+        <strong>${r.topic}</strong>
+        ${r.differentiation?'<span class="tag tag-diff" style="margin-left:6px">moat</span>':''}
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">${r.recommendation.substring(0,80)}${r.recommendation.length>80?'...':''}</div>
+      </td>
+      <td><span class="tag ${intentTagMap[r.intent]||'tag-info'}">${r.intent}</span></td>
+      <td>
+        <div class="score-bar">
+          <div class="score-track"><div class="score-fill" style="width:${r.priorityScore}%"></div></div>
+          <div class="score-num">${r.priorityScore}</div>
+        </div>
+      </td>
+      <td>
+        <span class="tag ${covTagMap[r.coverage_status]||'tag-gap'}">${covLabel[r.coverage_status]||'—'}</span>
+        ${r.competitorCoverage?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${r.competitorCoverage}</div>`:''}
+      </td>
+      <td onclick="event.stopPropagation()">
+        <div class="review-actions">
+          <button class="action-btn action-approve ${S.decisions[i]==='approve'?'selected':''}" onclick="setDecision(${i},'approve',this)">✓</button>
+          <button class="action-btn action-edit ${S.decisions[i]==='edit'?'selected':''}" onclick="openEdit(${i})">✎</button>
+          <button class="action-btn action-reject ${S.decisions[i]==='reject'?'selected':''}" onclick="setDecision(${i},'reject',this)">✕</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  updateReviewStats();
+}
+
+function showFanout(i) {
+  const r=S.blueprintRows[i];
+  document.getElementById('fanout-panel').style.display='block';
+  document.getElementById('fanout-topic').textContent=r.topic;
+  document.getElementById('fanout-recommendation').textContent=r.recommendation||'';
+  const ul=document.getElementById('fanout-questions');
+  if(r.fanOutQuestions?.length){
+    ul.innerHTML=r.fanOutQuestions.map(q=>`<li>${q}</li>`).join('');
+  } else {
+    ul.innerHTML='<li style="color:var(--muted)">No fan-out questions generated for this item.</li>';
+  }
+  document.getElementById('fanout-panel').scrollIntoView({behavior:'smooth'});
+}
+
+function setDecision(idx, decision, btn) {
+  S.decisions[idx]=decision;
+  const row=btn.closest('tr');
+  row.querySelectorAll('.action-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  updateReviewStats();
+}
+
+function updateReviewStats() {
+  const total=S.blueprintRows.length;
+  const approved=Object.values(S.decisions).filter(d=>d==='approve').length;
+  const decided=Object.keys(S.decisions).length;
+  document.getElementById('rev-total').textContent=total;
+  document.getElementById('rev-approved').textContent=approved;
+  document.getElementById('rev-pending').textContent=total-decided;
+  document.getElementById('sb-items').textContent=total+' items';
+}
+
+function approveAll() {
+  S.blueprintRows.forEach((_,i)=>S.decisions[i]='approve');
+  renderReviewTable();
+}
+
+function rejectAll() {
+  S.blueprintRows.forEach((_,i)=>S.decisions[i]='reject');
+  renderReviewTable();
+}
+
+// ── Edit modal ─────────────────────────────────────────────────────────
+function openEdit(i) {
+  S.editIndex=i;
+  const r=S.blueprintRows[i];
+  document.getElementById('edit-topic').value=r.topic;
+  document.getElementById('edit-recommendation').value=r.recommendation;
+  document.getElementById('edit-modal').classList.add('show');
+}
+
+function closeEdit() {
+  document.getElementById('edit-modal').classList.remove('show');
+  S.editIndex=null;
+}
+
+function saveEdit() {
+  if(S.editIndex===null) return;
+  S.blueprintRows[S.editIndex].topic=document.getElementById('edit-topic').value;
+  S.blueprintRows[S.editIndex].recommendation=document.getElementById('edit-recommendation').value;
+  S.decisions[S.editIndex]='edit';
+  closeEdit();
+  renderReviewTable();
+}
+
+// ── Export ─────────────────────────────────────────────────────────────
+function getApprovedRows() {
+  return S.blueprintRows
+    .map((r,i)=>({...r, decision:S.decisions[i]||'pending'}))
+    .filter(r=>r.decision==='approve'||r.decision==='edit');
+}
+
+async function exportSheets() {
+  const rows=getApprovedRows();
+  if(!rows.length){ alert('No approved rows to export. Approve at least one item first.'); return; }
+  const btn=document.getElementById('sheets-btn');
+  btn.disabled=true;
+  document.getElementById('sheets-status').textContent='⏳ Sending to Google Sheets...';
+
+  const payload=rows.map(r=>({
+    topic: r.topic,
+    intent_type: r.intent,
+    priority_score: r.priorityScore,
+    coverage_status: r.coverage_status,
+    competitor_coverage: r.competitorCoverage||'',
+    differentiation: r.differentiation?'yes':'no',
+    fan_out_questions: (r.fanOutQuestions||[]).join(' | '),
+    recommendation: r.recommendation,
+    decision: r.decision
+  }));
+
+  try {
+    const res=await fetch('/api/write',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await res.json();
+    if(data.success){
+      document.getElementById('sheets-status').textContent=`✅ ${rows.length} rows written to Blueprint_Output`;
+      showExportSummary('Google Sheets', rows.length);
+    } else {
+      throw new Error(data.error||'Unknown error');
+    }
+  } catch(e){
+    document.getElementById('sheets-status').textContent=`❌ Failed: ${e.message}`;
+  }
+  btn.disabled=false;
+}
+
+function exportCSV() {
+  const rows=getApprovedRows();
+  if(!rows.length){ alert('No approved rows to export.'); return; }
+  const headers=['topic','intent_type','priority_score','coverage_status','competitor_coverage','differentiation','fan_out_questions','recommendation','decision'];
+  const csvRows=rows.map(r=>[
+    r.topic, r.intent, r.priorityScore, r.coverage_status,
+    r.competitorCoverage||'', r.differentiation?'yes':'no',
+    (r.fanOutQuestions||[]).join(' | '), r.recommendation, r.decision||''
+  ]);
+  const csv=[headers,...csvRows].map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`coverage_blueprint_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  showExportSummary('CSV download', rows.length);
+}
+
+function showExportSummary(method, count) {
+  document.getElementById('export-summary').style.display='block';
+  const rejected=Object.values(S.decisions).filter(d=>d==='reject').length;
+  const edited=Object.values(S.decisions).filter(d=>d==='edit').length;
+  document.getElementById('export-detail').innerHTML=
+    `<strong>${count}</strong> recommendations exported via <strong>${method}</strong><br>
+     Approved: ${count-edited} &nbsp;·&nbsp; Edited & approved: ${edited} &nbsp;·&nbsp; Rejected: ${rejected}`;
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────
+function resetAll() {
+  if(!confirm('Clear all data and start a new analysis?')) return;
+  S.gscData=[]; S.urls=[]; S.structMode='scratch';
+  S.seedTopic=''; S.existingStructure='';
+  S.blueprintRows=[]; S.decisions={};
+  ['rs-0','rs-1','rs-2','rs-3'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.classList.remove('done','running','error');
+    const icons=['🎯','🏆','💎','🔭'];
+    const idx=parseInt(id.split('-')[1]);
+    el.querySelector('.run-icon').textContent=icons[idx];
+  });
+  document.getElementById('run-btn').textContent='▶ Run Coverage Analysis';
+  document.getElementById('run-btn').onclick=runAnalysis;
+  document.getElementById('preview-table').innerHTML='';
+  document.getElementById('gsc-preview').style.display='none';
+  document.getElementById('file-loaded').style.display='none';
+  document.getElementById('scrape-card').style.display='none';
+  document.getElementById('url-list').innerHTML='';
+  document.getElementById('review-body').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:40px">Run analysis first</td></tr>';
+  document.getElementById('fanout-panel').style.display='none';
+  document.getElementById('export-summary').style.display='none';
+  S.urls=[];
+  goTo(0);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+addUrl(); addUrl(); addUrl();
+</script>
+</body>
+</html>
