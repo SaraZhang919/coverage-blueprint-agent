@@ -235,9 +235,24 @@ textarea:focus{border-color:var(--accent)}
     <div style="padding:0 18px">
       <div class="sidebar-label">Session</div>
       <div class="chip">📊 <span id="sb-gsc">No GSC data</span></div>
+      <div class="chip">📅 <span id="sb-range">3 months</span></div>
       <div class="chip">🔗 <span id="sb-urls">0 URLs</span></div>
       <div class="chip">🗂️ <span id="sb-mode">No structure</span></div>
       <div class="chip">📋 <span id="sb-items">0 items</span></div>
+    </div>
+
+    <div style="padding:18px 18px 0">
+      <div class="sidebar-label">Developer</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;color:var(--muted)">Debug mode</span>
+        <button id="debug-toggle" onclick="toggleDebug()"
+          style="padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'DM Mono',monospace;transition:all .2s">
+          OFF
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+        Shows prompt previews and token counts after each analysis check.
+      </div>
     </div>
   </aside>
 
@@ -255,6 +270,21 @@ textarea:focus{border-color:var(--accent)}
       <div class="card">
         <div class="card-title">📂 Upload GSC Export</div>
         <div class="card-desc">Go to GSC → Performance → Search results → Export → Download CSV.</div>
+
+        <div class="alert alert-info" style="margin-bottom:14px">
+          💡 <strong>Recommended: export last 3 months of data.</strong>
+          Shorter ranges (28 days) may miss query variety and undercount volume.
+          Longer ranges (6–12 months) better capture seasonal topics and long-tail queries.
+        </div>
+
+        <label style="display:block;font-size:13px;color:var(--muted);margin-bottom:6px">What time range did you export?</label>
+        <div class="toggle-group" style="margin-bottom:16px">
+          <button class="toggle-btn" id="tr-1" onclick="setTimeRange(1,this)">28 days</button>
+          <button class="toggle-btn active" id="tr-3" onclick="setTimeRange(3,this)">3 months</button>
+          <button class="toggle-btn" id="tr-6" onclick="setTimeRange(6,this)">6 months</button>
+          <button class="toggle-btn" id="tr-12" onclick="setTimeRange(12,this)">12 months</button>
+        </div>
+
         <div class="drop-zone" id="drop-zone"
           onclick="document.getElementById('file-input').click()"
           ondragover="event.preventDefault();this.classList.add('dragover')"
@@ -420,6 +450,13 @@ textarea:focus{border-color:var(--accent)}
         <div id="analysis-error" class="alert alert-error" style="display:none"></div>
         <button class="btn btn-primary btn-lg btn-full" id="run-btn" onclick="runAnalysis()">▶ Run Coverage Analysis</button>
       </div>
+
+      <!-- Debug panel — shown only when debug mode is ON -->
+      <div class="card" id="debug-panel" style="display:none">
+        <div class="card-title">🔍 Debug — Prompt & Token Inspector</div>
+        <div class="card-desc">Shows what was sent to GPT-4o for each check. Use this to understand and improve prompt output.</div>
+        <div id="debug-content"></div>
+      </div>
     </div>
 
     <!-- PAGE 4: Review -->
@@ -543,15 +580,18 @@ textarea:focus{border-color:var(--accent)}
 // ── State ──────────────────────────────────────────────────────────────
 const S = {
   gscData: [],
-  urls: [],           // { id, url, status, headings, text, manualContent }
+  urls: [],              // { id, url, status, headings, text, manualContent }
   structMode: 'scratch',
   existingType: 'outline', // 'outline' | 'article'
   seedTopic: '',
   existingStructure: '',
   existingArticle: '',
-  blueprintRows: [],  // merged output from all 4 checks
-  decisions: {},      // index → 'approve'|'reject'|'edit'
-  editIndex: null
+  timeRangeMonths: 3,    // 1=28days, 3=3months, 6=6months, 12=12months
+  blueprintRows: [],     // merged output from all 4 checks
+  decisions: {},         // index → 'approve'|'reject'|'edit'
+  editIndex: null,
+  debugMode: false,      // shows prompt previews and token counts after analysis
+  lastDebugData: {}      // stores _debug objects from each check
 };
 
 // ── Navigation ─────────────────────────────────────────────────────────
@@ -568,9 +608,64 @@ function goTo(n) {
 
 function updateSidebar() {
   document.getElementById('sb-gsc').textContent = S.gscData.length ? S.gscData.length+' queries' : 'No GSC data';
+  document.getElementById('sb-range').textContent = formatTimeRangeLabel(S.timeRangeMonths);
   document.getElementById('sb-urls').textContent = S.urls.length+' URL'+(S.urls.length!==1?'s':'');
   document.getElementById('sb-mode').textContent = S.structMode==='scratch' ? 'From scratch' : S.existingType==='article' ? 'Full article' : 'Outline';
   document.getElementById('sb-items').textContent = S.blueprintRows.length+' items';
+}
+
+function formatTimeRangeLabel(months) {
+  return { 1:'28 days', 3:'3 months', 6:'6 months', 12:'12 months' }[months] || months+' months';
+}
+
+function setTimeRange(months, btn) {
+  S.timeRangeMonths = months;
+  document.querySelectorAll('[id^="tr-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateSidebar();
+}
+
+function toggleDebug() {
+  S.debugMode = !S.debugMode;
+  const btn = document.getElementById('debug-toggle');
+  btn.textContent = S.debugMode ? 'ON' : 'OFF';
+  btn.style.color = S.debugMode ? 'var(--accent3)' : 'var(--muted)';
+  btn.style.borderColor = S.debugMode ? 'var(--accent3)' : 'var(--border)';
+  // Show/hide debug panel based on whether data exists
+  if (S.debugMode && Object.keys(S.lastDebugData).length) {
+    renderDebugPanel();
+    document.getElementById('debug-panel').style.display = 'block';
+  } else {
+    document.getElementById('debug-panel').style.display = 'none';
+  }
+}
+
+function renderDebugPanel() {
+  const checks = ['intent','consensus','differentiation','fanout'];
+  const labels = {
+    intent: '① Intent clustering',
+    consensus: '② Competitor consensus',
+    differentiation: '③ Differentiation',
+    fanout: '④ Fan-out map'
+  };
+  const content = document.getElementById('debug-content');
+  content.innerHTML = checks.map(key => {
+    const d = S.lastDebugData[key];
+    if (!d) return '';
+    return `
+      <div style="margin-bottom:20px;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+        <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);margin-bottom:8px;font-weight:500">${labels[key]}</div>
+        <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--muted)">⏱ Time range: <strong style="color:var(--text)">${d.timeRange}</strong></span>
+          <span style="font-size:11px;color:var(--muted)">📊 Queries sent: <strong style="color:var(--text)">${d.normalisedQueryCount}</strong></span>
+          <span style="font-size:11px;color:var(--muted)">🏢 Competitors: <strong style="color:var(--text)">${d.competitorCount}</strong></span>
+          <span style="font-size:11px;color:var(--muted)">🔤 Tokens used: <strong style="color:var(--accent2)">${d.tokensUsed || '—'}</strong></span>
+          <span style="font-size:11px;color:var(--muted)">📏 Prompt length: <strong style="color:var(--text)">${d.promptLength} chars</strong></span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:'DM Mono',monospace">Prompt preview (first 300 chars):</div>
+        <div style="font-size:12px;color:var(--text);background:var(--bg);padding:10px;border-radius:8px;font-family:'DM Mono',monospace;line-height:1.6;white-space:pre-wrap;overflow-x:auto">${d.promptPreview}</div>
+      </div>`;
+  }).join('');
 }
 
 // ── GSC Upload ─────────────────────────────────────────────────────────
@@ -812,7 +907,8 @@ async function runAnalysis() {
     existingArticle: S.existingArticle,
     existingType: S.existingType || 'outline',
     seedTopic: S.seedTopic || S.gscData[0]?.query || '',
-    structMode: S.structMode
+    structMode: S.structMode,
+    timeRangeMonths: S.timeRangeMonths
   };
 
   const checks=[
@@ -838,6 +934,8 @@ async function runAnalysis() {
       });
       const data=await res.json();
       if(data.error) throw new Error(data.error);
+      // Capture debug metadata if present
+      if(data._debug) S.lastDebugData[check.key] = data._debug;
       results[check.key]=data;
       el.classList.remove('running');
       el.classList.add('done');
@@ -855,6 +953,11 @@ async function runAnalysis() {
 
   if(!hasError){
     mergeResults(results);
+    // Show debug panel if debug mode is on
+    if(S.debugMode) {
+      renderDebugPanel();
+      document.getElementById('debug-panel').style.display='block';
+    }
     btn.textContent='✅ Analysis complete — go to Review →';
     btn.onclick=()=>goTo(4);
     btn.disabled=false;
