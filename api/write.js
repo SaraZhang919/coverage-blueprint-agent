@@ -1,3 +1,8 @@
+/**
+ * api/write.js — Coverage Blueprint Agent
+ * Proxy to n8n Google Sheets writer webhook.
+ */
+
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
@@ -20,21 +25,16 @@ export default async function handler(req) {
       body: JSON.stringify(rows)
     });
 
-    if (!response.ok) {
-      throw new Error(`n8n writer returned ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`n8n writer returned ${response.status}`);
     const result = await response.json();
 
     return new Response(JSON.stringify({ success: true, rowsWritten: rows.length, result }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
 
   } catch (err) {
     return new Response(JSON.stringify({ success: false, error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
 }
