@@ -28,15 +28,13 @@ export default async function handler(req) {
     });
   }
 
-  const PASSPHRASE = process.env.ACCESS_PASSPHRASE;
-  const SECRET = process.env.SESSION_SECRET;
-
-  if (!PASSPHRASE || !SECRET) {
-    return new Response(JSON.stringify({ error: 'Auth not configured — set ACCESS_PASSPHRASE and SESSION_SECRET in Vercel env vars' }), {
-      status: 500,
-      headers: corsHeaders()
-    });
-  }
+const PASSPHRASE = process.env.ACCESS_PASSPHRASE;
+if (!PASSPHRASE) {
+  return new Response(JSON.stringify({ error: 'Auth not configured — set ACCESS_PASSPHRASE in Vercel env vars' }), {
+    status: 500,
+    headers: corsHeaders()
+  });
+}
 
   try {
     const { passphrase } = await req.json();
