@@ -5,6 +5,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.0] — Access control
+
+### Added
+
+**Login screen (`index.html`)**
+- Passphrase-protected overlay shown on every fresh session
+- Passphrase checked server-side via `api/auth.js` — never in the code
+- On success, a simple authenticated flag is stored in `sessionStorage`
+- Session cleared when browser tab closes, or on sign out
+- Sign out button in the header
+- Enter key submits the login form
+
+**`api/auth.js` — new file**
+- Single responsibility: validate passphrase, return success/fail
+- Passphrase lives in `ACCESS_PASSPHRASE` Vercel env var — not in code
+- 500ms delay on wrong passphrase to slow brute force attempts
+
+### Design decision — why no token on API routes
+The API routes (`analyse.js`, `scrape.js`, `write.js`) are not individually protected. This is intentional:
+- The login screen blocks access to the UI — no UI, no way to call the APIs in normal use
+- The API keys (OpenAI, n8n) are in Vercel env vars and never exposed to the browser
+- Adding token validation to every API route adds complexity with minimal real security gain for a single-user tool
+- If you need stronger API-level protection in future, add `api/_validate.js` back
+
+### New Vercel env var required
+| Variable | Description |
+|---|---|
+| `ACCESS_PASSPHRASE` | The passphrase users must enter — set in Vercel env vars, never in code |
+
+---
+
 ## [1.1.0] — Prompt management, time range handling, debug mode
 
 ### Added
