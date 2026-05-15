@@ -51,7 +51,7 @@ if (!PASSPHRASE) {
 
     // Generate session token: HMAC-SHA256 of "timestamp:secret"
     const timestamp = Date.now();
-    const payload = `${timestamp}:${SECRET}`;
+    const payload = `${timestamp}:${PASSPHRASE}`;
     const token = await generateToken(payload);
 
     return new Response(JSON.stringify({
