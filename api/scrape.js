@@ -1,3 +1,8 @@
+/**
+ * api/scrape.js — Coverage Blueprint Agent
+ * Proxy to n8n competitor scraper webhook.
+ */
+
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
@@ -12,9 +17,7 @@ export default async function handler(req) {
 
   try {
     const { url } = await req.json();
-    if (!url) {
-      return new Response(JSON.stringify({ error: 'URL is required' }), { status: 400 });
-    }
+    if (!url) return new Response(JSON.stringify({ error: 'URL is required' }), { status: 400 });
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
@@ -28,47 +31,27 @@ export default async function handler(req) {
         signal: controller.signal
       });
       clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error(`n8n returned ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`n8n returned ${response.status}`);
       result = await response.json();
     } catch (fetchErr) {
       clearTimeout(timeout);
       return new Response(JSON.stringify({
-        success: false,
-        url,
+        success: false, url,
         error: fetchErr.name === 'AbortError' ? 'Request timed out (20s)' : fetchErr.message,
-        headings: [],
-        text: '',
-        wordCount: 0
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-      });
+        headings: [], text: '', wordCount: 0
+      }), { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
 
-    // n8n returns array — unwrap if needed
     const data = Array.isArray(result) ? result[0] : result;
-
     return new Response(JSON.stringify({
-      success: data.success || false,
-      url,
-      headings: data.headings || [],
-      headingCount: data.headingCount || 0,
-      text: data.text || '',
-      wordCount: data.wordCount || 0,
-      error: data.error || null
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-    });
+      success: data.success || false, url,
+      headings: data.headings || [], headingCount: data.headingCount || 0,
+      text: data.text || '', wordCount: data.wordCount || 0, error: data.error || null
+    }), { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
 
   } catch (err) {
     return new Response(JSON.stringify({ success: false, error: err.message, headings: [], text: '' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
 }
